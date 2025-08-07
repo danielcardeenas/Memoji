@@ -20,24 +20,24 @@ class AvatarController extends Controller
     ];
 
     protected array $colors = [
-        '#F794E9', // Red/Pink
-        '#FF93B6', // Pink
-        '#F5A67E', // Orange
-        '#F9C584', // Yellow
-        '#A5ED9A', // Light Green
-        '#6CF2A2', // Green
-        '#5FECEE', // Cyan
-        '#87C6ED', // Light Blue
-        '#AAC7DE', // Sky Blue
-        '#B3E0E0', // Light Cyan
-        '#C8B7FA', // Light Violet
-        '#C7B8D2', // Lavender
-        '#C7C0B7', // Beige/Grey
-        '#969CA8', // Grayish Blue
-        '#C1D2BD', // Pale Greenish
-        '#DCACA8', // Pale Pinkish
-        '#DFC39E', // Light Tan
-        '#5B5B5B', // Dark Gray
+        '#E8D5E8', // Soft Lavender
+        '#F0D5D8', // Dusty Rose
+        '#E8CDB0', // Warm Beige
+        '#F5E6A8', // Muted Gold
+        '#D4E5D4', // Sage Green
+        '#C8E6C8', // Soft Mint
+        '#D1E7E7', // Pale Teal
+        '#D6E3F0', // Powder Blue
+        '#E0E6F0', // Light Periwinkle
+        '#E8F0F0', // Ice Blue
+        '#E6D9F0', // Gentle Violet
+        '#E8E0E8', // Light Mauve
+        '#EAE3D8', // Cream
+        '#DDE0E6', // Cool Gray
+        '#E0E6D8', // Mint Cream
+        '#F0E3E0', // Blush
+        '#F0E8D6', // Vanilla
+        '#D0D0D0', // Soft Gray
     ];
 
     protected NameGenderDetector $genderDetector;
