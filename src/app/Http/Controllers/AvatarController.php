@@ -8,6 +8,7 @@ use Intervention\Image\Geometry\Factories\CircleFactory;
 use Illuminate\Support\Str;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class AvatarController extends Controller
 {
@@ -20,31 +21,59 @@ class AvatarController extends Controller
     ];
 
     protected array $colors = [
-        '#E8D5E8', // Soft Lavender
-        '#F0D5D8', // Dusty Rose
-        '#E8CDB0', // Warm Beige
-        '#F5E6A8', // Muted Gold
-        '#D4E5D4', // Sage Green
-        '#C8E6C8', // Soft Mint
-        '#D1E7E7', // Pale Teal
-        '#D6E3F0', // Powder Blue
-        '#E0E6F0', // Light Periwinkle
-        '#E8F0F0', // Ice Blue
-        '#E6D9F0', // Gentle Violet
-        '#E8E0E8', // Light Mauve
-        '#EAE3D8', // Cream
-        '#DDE0E6', // Cool Gray
-        '#E0E6D8', // Mint Cream
-        '#F0E3E0', // Blush
-        '#F0E8D6', // Vanilla
-        '#D0D0D0', // Soft Gray
+        '#A78BFA', // Medium Purple
+        '#FB7185', // Rose
+        '#F59E0B', // Amber
+        '#10B981', // Emerald
+        '#06B6D4', // Cyan
+        '#8B5CF6', // Violet
+        '#F97316', // Orange
+        '#EF4444', // Red
+        '#3B82F6', // Blue
+        '#84CC16', // Lime
+        '#EC4899', // Pink
+        '#6366F1', // Indigo
+        '#14B8A6', // Teal
+        '#F59E0B', // Yellow
+        '#8B5A2B', // Brown
+        '#6B7280', // Gray
+        '#DC2626', // Crimson
+        '#059669', // Green
     ];
 
     protected NameGenderDetector $genderDetector;
+    protected static $imageManagerInstance = null;
+    protected static $loadedImages = [];
 
     public function __construct()
     {
         $this->genderDetector = new NameGenderDetector();
+    }
+
+    /**
+     * Get singleton ImageManager instance to avoid recreation overhead
+     */
+    protected function getImageManager(): ImageManager
+    {
+        if (self::$imageManagerInstance === null) {
+            self::$imageManagerInstance = new ImageManager(Driver::class);
+        }
+        return self::$imageManagerInstance;
+    }
+
+    /**
+     * Cache loaded base images in memory to avoid repeated file reads
+     */
+    protected function getBaseImage(string $imagePath): \Intervention\Image\Interfaces\ImageInterface
+    {
+        $cacheKey = md5($imagePath);
+        
+        if (!isset(self::$loadedImages[$cacheKey])) {
+            self::$loadedImages[$cacheKey] = $this->getImageManager()->read($imagePath);
+        }
+        
+        // Return a copy to avoid modifying the cached image
+        return clone self::$loadedImages[$cacheKey];
     }
 
     public function generate(?string $name = null, ?string $gender = null)
@@ -121,13 +150,20 @@ class AvatarController extends Controller
         $fileName = "{$hash}_{$cacheKey}{$countryCode}_{$colorIndex}.webp";
         $filePath = storage_path("app/public/avatars/{$fileName}");
 
-        if (file_exists($filePath)) {
+        // Check if file exists in cache first (faster than file_exists)
+        $avatarExists = Cache::remember("avatar_exists_{$fileName}", 3600, function() use ($filePath) {
+            return file_exists($filePath);
+        });
+
+        if ($avatarExists && file_exists($filePath)) {
             return response()->file($filePath)
                 ->header('Content-Type', 'image/webp')
-                ->header('Cache-Control', 'public, max-age=31536000, immutable');
+                ->header('Cache-Control', 'public, max-age=31536000, immutable')
+                ->header('ETag', '"' . $hash . '"')
+                ->header('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T', filemtime($filePath)));
         }
 
-        $manager = new ImageManager(Driver::class);
+        $manager = $this->getImageManager();
 
         $canvas = $manager->create(1024, 1024);
 
@@ -137,10 +173,11 @@ class AvatarController extends Controller
         });
 
         try {
-            $selectedImage = $manager->read($selectedImage);
+            $selectedImage = $this->getBaseImage($selectedImage);
             $selectedImage->resize(920, 920);
         } catch (\Exception $e) {
-            dd($selectedImage);
+            \Log::error('Avatar generation failed', ['image_path' => $selectedImage, 'error' => $e->getMessage()]);
+            abort(500, 'Avatar generation failed');
         }
 
         $canvas->place($selectedImage, 'center', 0, 10);
@@ -152,12 +189,29 @@ class AvatarController extends Controller
         $canvas->scale(128, 128)->sharpen(2);
         $webp = $canvas->toWebp(100);
 
-        Storage::disk('public')->put("avatars/generated/{$fileName}", $webp);
+        // Store the generated avatar
+        Storage::disk('public')->put("avatars/{$fileName}", $webp);
+        
+        // Update cache to reflect the new file exists
+        Cache::put("avatar_exists_{$fileName}", true, 3600);
 
         return response($webp)
             ->header('Content-Type', 'image/webp')
             ->header('Content-Disposition', 'inline; filename="avatar.webp"')
-            ->header('Cache-Control', 'public, max-age=31536000, immutable');
+            ->header('Cache-Control', 'public, max-age=31536000, immutable')
+            ->header('ETag', '"' . $hash . '"')
+            ->header('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T'));
+    }
+
+    /**
+     * Clear memory caches to prevent memory leaks in long-running processes
+     */
+    public static function clearMemoryCache(): void
+    {
+        self::$loadedImages = [];
+        if (self::$imageManagerInstance) {
+            self::$imageManagerInstance = null;
+        }
     }
 
     /**
