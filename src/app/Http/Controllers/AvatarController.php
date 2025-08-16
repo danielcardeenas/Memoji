@@ -156,11 +156,12 @@ class AvatarController extends Controller
         });
 
         if ($avatarExists && file_exists($filePath)) {
-            return response()->file($filePath)
-                ->header('Content-Type', 'image/webp')
-                ->header('Cache-Control', 'public, max-age=31536000, immutable')
-                ->header('ETag', '"' . $hash . '"')
-                ->header('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T', filemtime($filePath)));
+            $response = response()->file($filePath);
+            $response->headers->set('Content-Type', 'image/webp');
+            $response->headers->set('Cache-Control', 'public, max-age=31536000, immutable');
+            $response->headers->set('ETag', '"' . $hash . '"');
+            $response->headers->set('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T', filemtime($filePath)));
+            return $response;
         }
 
         $manager = $this->getImageManager();
