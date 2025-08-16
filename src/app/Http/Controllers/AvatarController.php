@@ -8,72 +8,43 @@ use Intervention\Image\Geometry\Factories\CircleFactory;
 use Illuminate\Support\Str;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
 
 class AvatarController extends Controller
 {
     protected string $imagesPath = 'images/avatars/';
 
     protected array $genderConfig = [
-        'male' => ['path' => 'male/', 'count' => 27],
-        'female' => ['path' => 'female/', 'count' => 31],
-        'random' => ['path' => 'v1/', 'count' => 58], // backwards compatibility
+        'male' => ['path' => 'male/', 'count' => 39],
+        'female' => ['path' => 'female/', 'count' => 41],
+        'random' => ['path' => 'v1/', 'count' => 80], // backwards compatibility
     ];
 
     protected array $colors = [
-        '#A78BFA', // Medium Purple
-        '#FB7185', // Rose
-        '#F59E0B', // Amber
-        '#10B981', // Emerald
-        '#06B6D4', // Cyan
-        '#8B5CF6', // Violet
-        '#F97316', // Orange
-        '#EF4444', // Red
-        '#3B82F6', // Blue
-        '#84CC16', // Lime
-        '#EC4899', // Pink
-        '#6366F1', // Indigo
-        '#14B8A6', // Teal
-        '#F59E0B', // Yellow
-        '#8B5A2B', // Brown
-        '#6B7280', // Gray
-        '#DC2626', // Crimson
-        '#059669', // Green
+        '#8B5CF6', // Rich Violet - excellent contrast both themes
+        '#EF4444', // Vibrant Red - strong visibility
+        '#F59E0B', // Warm Amber - balanced luminance
+        '#10B981', // Fresh Emerald - great dual contrast
+        '#06B6D4', // Cool Cyan - works in both modes
+        '#EC4899', // Bright Pink - maintains vibrancy
+        '#F97316', // Bold Orange - optimal contrast
+        '#3B82F6', // True Blue - classic dual-theme color
+        '#8B5A2B', // Rich Brown - earthy and balanced
+        '#6366F1', // Deep Indigo - sophisticated contrast
+        '#14B8A6', // Teal Green - professional look
+        '#DC2626', // Deep Red - strong presence
+        '#059669', // Forest Green - natural balance
+        '#7C3AED', // Purple - refined and visible
+        '#BE185D', // Magenta - vibrant contrast
+        '#0891B2', // Sky Blue - fresh and clear
+        '#CA8A04', // Golden Yellow - warm visibility
+        '#525252', // Neutral Gray - perfect balance
     ];
 
     protected NameGenderDetector $genderDetector;
-    protected static $imageManagerInstance = null;
-    protected static $loadedImages = [];
 
     public function __construct()
     {
         $this->genderDetector = new NameGenderDetector();
-    }
-
-    /**
-     * Get singleton ImageManager instance to avoid recreation overhead
-     */
-    protected function getImageManager(): ImageManager
-    {
-        if (self::$imageManagerInstance === null) {
-            self::$imageManagerInstance = new ImageManager(Driver::class);
-        }
-        return self::$imageManagerInstance;
-    }
-
-    /**
-     * Cache loaded base images in memory to avoid repeated file reads
-     */
-    protected function getBaseImage(string $imagePath): \Intervention\Image\Interfaces\ImageInterface
-    {
-        $cacheKey = md5($imagePath);
-        
-        if (!isset(self::$loadedImages[$cacheKey])) {
-            self::$loadedImages[$cacheKey] = $this->getImageManager()->read($imagePath);
-        }
-        
-        // Return a copy to avoid modifying the cached image
-        return clone self::$loadedImages[$cacheKey];
     }
 
     public function generate(?string $name = null, ?string $gender = null)
@@ -150,21 +121,13 @@ class AvatarController extends Controller
         $fileName = "{$hash}_{$cacheKey}{$countryCode}_{$colorIndex}.webp";
         $filePath = storage_path("app/public/avatars/{$fileName}");
 
-        // Check if file exists in cache first (faster than file_exists)
-        $avatarExists = Cache::remember("avatar_exists_{$fileName}", 3600, function() use ($filePath) {
-            return file_exists($filePath);
-        });
-
-        if ($avatarExists && file_exists($filePath)) {
-            $response = response()->file($filePath);
-            $response->headers->set('Content-Type', 'image/webp');
-            $response->headers->set('Cache-Control', 'public, max-age=31536000, immutable');
-            $response->headers->set('ETag', '"' . $hash . '"');
-            $response->headers->set('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T', filemtime($filePath)));
-            return $response;
+        if (file_exists($filePath)) {
+            return response()->file($filePath)
+                ->header('Content-Type', 'image/webp')
+                ->header('Cache-Control', 'public, max-age=31536000, immutable');
         }
 
-        $manager = $this->getImageManager();
+        $manager = new ImageManager(Driver::class);
 
         $canvas = $manager->create(1024, 1024);
 
@@ -174,11 +137,10 @@ class AvatarController extends Controller
         });
 
         try {
-            $selectedImage = $this->getBaseImage($selectedImage);
+            $selectedImage = $manager->read($selectedImage);
             $selectedImage->resize(920, 920);
         } catch (\Exception $e) {
-            \Log::error('Avatar generation failed', ['image_path' => $selectedImage, 'error' => $e->getMessage()]);
-            abort(500, 'Avatar generation failed');
+            dd($selectedImage);
         }
 
         $canvas->place($selectedImage, 'center', 0, 10);
@@ -190,29 +152,12 @@ class AvatarController extends Controller
         $canvas->scale(128, 128)->sharpen(2);
         $webp = $canvas->toWebp(100);
 
-        // Store the generated avatar
-        Storage::disk('public')->put("avatars/{$fileName}", $webp);
-        
-        // Update cache to reflect the new file exists
-        Cache::put("avatar_exists_{$fileName}", true, 3600);
+        Storage::disk('public')->put("avatars/generated/{$fileName}", $webp);
 
         return response($webp)
             ->header('Content-Type', 'image/webp')
             ->header('Content-Disposition', 'inline; filename="avatar.webp"')
-            ->header('Cache-Control', 'public, max-age=31536000, immutable')
-            ->header('ETag', '"' . $hash . '"')
-            ->header('Last-Modified', gmdate('D, d M Y H:i:s \G\M\T'));
-    }
-
-    /**
-     * Clear memory caches to prevent memory leaks in long-running processes
-     */
-    public static function clearMemoryCache(): void
-    {
-        self::$loadedImages = [];
-        if (self::$imageManagerInstance) {
-            self::$imageManagerInstance = null;
-        }
+            ->header('Cache-Control', 'public, max-age=31536000, immutable');
     }
 
     /**
