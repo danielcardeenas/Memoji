@@ -40,6 +40,27 @@ class AvatarController extends Controller
         '#525252', // Neutral Gray - perfect balance
     ];
 
+    protected array $paleColors = [
+        '#C4B5FD', // Pale Violet - soft and light
+        '#FCA5A5', // Pale Red - gentle and warm
+        '#FDE68A', // Pale Amber - soft yellow tone
+        '#86EFAC', // Pale Emerald - light mint green
+        '#67E8F9', // Pale Cyan - soft sky blue
+        '#F9A8D4', // Pale Pink - gentle rose
+        '#FDBA74', // Pale Orange - soft peach
+        '#93C5FD', // Pale Blue - light sky
+        '#D2B48C', // Pale Brown - soft tan
+        '#A5B4FC', // Pale Indigo - light lavender
+        '#7DD3FC', // Pale Teal - soft aqua
+        '#F87171', // Pale Deep Red - soft coral
+        '#6EE7B7', // Pale Forest Green - mint
+        '#C084FC', // Pale Purple - soft lilac
+        '#F472B6', // Pale Magenta - soft rose
+        '#38BDF8', // Pale Sky Blue - light blue
+        '#FCD34D', // Pale Golden Yellow - soft gold
+        '#9CA3AF', // Pale Gray - light neutral
+    ];
+
     protected NameGenderDetector $genderDetector;
 
     public function __construct()
@@ -50,6 +71,7 @@ class AvatarController extends Controller
     public function generate(?string $name = null, ?string $gender = null)
     {
         $colorIndex = request()->get('color') ?? null;
+        $palette = request()->get('palette') ?? 'default'; // NEW: Palette parameter (default or pale)
         $country = request()->get('country') ?? null; // NEW: Country parameter for better detection
 
         // Handle empty name
@@ -78,7 +100,15 @@ class AvatarController extends Controller
             $gender = 'random';
         }
 
-        if ($colorIndex < 0 || $colorIndex > count($this->colors) - 1) {
+        // Validate palette parameter
+        if (!in_array($palette, ['default', 'pale'])) {
+            $palette = 'default';
+        }
+
+        // Select color palette based on parameter
+        $selectedColorPalette = $palette === 'pale' ? $this->paleColors : $this->colors;
+
+        if ($colorIndex < 0 || $colorIndex > count($selectedColorPalette) - 1) {
             $colorIndex = null;
         }
 
@@ -110,15 +140,16 @@ class AvatarController extends Controller
         }
 
         if (!$colorIndex) {
-            $colorIndex = hexdec(substr($hash, 8, 8)) % count($this->colors);
+            $colorIndex = hexdec(substr($hash, 8, 8)) % count($selectedColorPalette);
         }
-        $selectedColor = $this->colors[$colorIndex];
+        $selectedColor = $selectedColorPalette[$colorIndex];
 
-        // Enhanced filename with country and detection method
+        // Enhanced filename with country, palette, and detection method
         $detectedGender = $this->genderDetector->detectGenderSmart($name);
         $countryCode = $country ? '_' . strtolower($country) : '';
+        $paletteCode = $palette === 'pale' ? '_pale' : '';
         $cacheKey = $gender === $detectedGender ? $gender : $gender . '_override';
-        $fileName = "{$hash}_{$cacheKey}{$countryCode}_{$colorIndex}.webp";
+        $fileName = "{$hash}_{$cacheKey}{$countryCode}{$paletteCode}_{$colorIndex}.webp";
         $filePath = storage_path("app/public/avatars/{$fileName}");
 
         if (file_exists($filePath)) {
@@ -160,59 +191,5 @@ class AvatarController extends Controller
             ->header('Cache-Control', 'public, max-age=31536000, immutable');
     }
 
-    /**
-     * Simple gender detection endpoint (for testing/debugging)
-     */
-    public function detectGender(string $name)
-    {
-        $country = request()->get('country');
-        $detectedGender = $this->genderDetector->detectGender($name, $country);
-        
-        return response()->json([
-            'name' => $name,
-            'detected_gender' => $detectedGender,
-            'country' => $country
-        ]);
-    }
 
-    /**
-     * Enhanced gender detection with detailed information
-     */
-    public function detectGenderDetailed(string $name)
-    {
-        $country = request()->get('country');
-        $detailedInfo = $this->genderDetector->getDetailedGender($name, $country);
-        
-        // Also include smart detection result
-        $smartGender = $this->genderDetector->detectGenderSmart($name);
-        $detailedInfo['smart_detection'] = $smartGender;
-        
-        return response()->json($detailedInfo);
-    }
-
-    /**
-     * Country-specific detection comparison
-     */
-    public function compareCountries(string $name)
-    {
-        $countries = ['US', 'GB', 'DE', 'FR', 'IT', 'ES', 'NL', 'SE', 'NO', 'DK'];
-        $results = [];
-        
-        // Default detection
-        $results['default'] = $this->genderDetector->detectGender($name);
-        
-        // Country-specific results
-        foreach ($countries as $country) {
-            $results[$country] = $this->genderDetector->detectGender($name, $country);
-        }
-        
-        // Smart detection
-        $results['smart'] = $this->genderDetector->detectGenderSmart($name);
-        
-        return response()->json([
-            'name' => $name,
-            'results' => $results,
-            'recommendation' => $results['smart']
-        ]);
-    }
 }

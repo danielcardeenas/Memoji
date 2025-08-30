@@ -77,45 +77,9 @@ class NameGenderDetector
         };
     }
 
-    /**
-     * Get detailed gender information including confidence level
-     * 
-     * @param string $name The first name to analyze
-     * @param string|null $country Optional country code
-     * @return array Detailed information about the detection
-     */
-    public function getDetailedGender(string $name, ?string $country = null): array
-    {
-        $firstName = $this->extractFirstName($name);
-        $gender = $this->detector->getGender($firstName, $country);
-        
-        return [
-            'name' => $firstName,
-            'original_input' => $name,
-            'detected_gender' => $this->mapGenderToOurFormat($gender),
-            'raw_result' => $gender?->name ?? 'Unknown',
-            'country' => $country,
-            'confidence' => $this->getConfidenceLevel($gender),
-            'is_confident' => $this->isConfidentDetection($gender)
-        ];
-    }
 
-    /**
-     * Get confidence level based on the gender result
-     */
-    private function getConfidenceLevel(?Gender $gender): string
-    {
-        if ($gender === null) {
-            return 'none';
-        }
 
-        return match ($gender) {
-            Gender::Male, Gender::Female => 'high',
-            Gender::MostlyMale, Gender::MostlyFemale => 'medium',
-            Gender::Unisex => 'low',
-            default => 'none'
-        };
-    }
+
 
     /**
      * Check if the detection is confident (not unisex or unknown)

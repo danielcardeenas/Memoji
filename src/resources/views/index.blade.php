@@ -99,7 +99,9 @@
                     {{ env('APP_URL') }}/api/avatar/{name}/{gender}.webp
                 </code>
                 <p class="text-gray-600 text-sm dark:text-gray-400 mb-1">Gender options: <strong>male</strong>, <strong>female</strong>, <strong>random</strong></p>
-                <p class="text-gray-600 text-sm dark:text-gray-400 mb-3">Add color parameter: <strong>?color=0-17</strong></p>
+                <p class="text-gray-600 text-sm dark:text-gray-400 mb-1">Add color parameter: <strong>?color=0-17</strong></p>
+                <p class="text-gray-600 text-sm dark:text-gray-400 mb-3">Add palette parameter: <strong>?palette=default</strong> or <strong>?palette=pale</strong> (for light themes)</p>
+                <p class="text-gray-600 text-sm dark:text-gray-400 mb-3">Examples: <em>john.webp?color=5&palette=pale</em>, <em>sarah/female.webp?palette=default</em></p>
                 <p class="text-gray-600 text-sm dark:text-gray-400 mb-3">For a random avatar:</p>
                 <code class="block bg-white p-3 rounded-md text-xs dark:bg-neutral-900">
                     {{ env('APP_URL') }}/api/avatar.webp
@@ -140,6 +142,40 @@
 
 
             </section>
+
+            <!-- Palette Comparison Section -->
+            <section>
+                <h2 class="text-lg font-semibold mb-4">🎨 Color Palettes</h2>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-md font-medium mb-3 text-center">Default Palette</h3>
+                        <div class="grid grid-cols-6 gap-2 max-w-max mx-auto">
+                            @for ($i = 0; $i < 12; $i++)
+                                <div class="w-12 h-12 rounded-full bg-white overflow-hidden dark:bg-black">
+                                    <img src="{{ route('avatar.generate', ['name' => 'demo' . $i, 'color' => $i, 'palette' => 'default']) }}"
+                                         class="w-full h-auto"
+                                         loading="lazy"
+                                         alt="Default Palette Avatar">
+                                </div>
+                            @endfor
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-md font-medium mb-3 text-center">Pale Palette (Light Themes)</h3>
+                        <div class="grid grid-cols-6 gap-2 max-w-max mx-auto">
+                            @for ($i = 0; $i < 12; $i++)
+                                <div class="w-12 h-12 rounded-full bg-white overflow-hidden dark:bg-black">
+                                    <img src="{{ route('avatar.generate', ['name' => 'demo' . $i, 'color' => $i, 'palette' => 'pale']) }}"
+                                         class="w-full h-auto"
+                                         loading="lazy"
+                                         alt="Pale Palette Avatar">
+                                </div>
+                            @endfor
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Example Usage Section -->
             <section class="bg-neutral-100 p-6 rounded-lg dark:bg-neutral-950">
                 <h2 class="text-lg font-semibold mb-4">🔗 Example Usage</h2>
